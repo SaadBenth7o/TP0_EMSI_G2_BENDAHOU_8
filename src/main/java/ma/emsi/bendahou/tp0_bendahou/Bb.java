@@ -115,26 +115,58 @@ public class Bb implements Serializable {
      */
     public String envoyer() {
         if (question == null || question.isBlank()) {
-            // Erreur ! Le formulaire va être réaffiché en réponse à la requête POST, avec un message d'erreur.
-            FacesMessage message = new FacesMessage(FacesMessage.SEVERITY_ERROR,
-                    "Texte question vide", "Il manque le texte de la question");
+            FacesMessage message = new FacesMessage(
+                    FacesMessage.SEVERITY_ERROR,
+                    "Texte question vide",
+                    "Il manque le texte de la question"
+            );
             facesContext.addMessage(null, message);
             return null;
         }
-        // Entourer la réponse avec "||".
-        this.reponse = "||";
-        // Si la conversation n'a pas encore commencé, ajouter le rôle système au début de la réponse
+
+        StringBuilder sb = new StringBuilder();
+
+        // Au tout début de la conversation : afficher le rôle et verrouiller le changement
         if (this.conversation.isEmpty()) {
-            // Ajouter le rôle système au début de la réponse
-            this.reponse += roleSysteme.toUpperCase(Locale.FRENCH) + "\n";
-            // Invalide le bouton pour changer le rôle système
+            String role = (roleSysteme == null || roleSysteme.isBlank())
+                    ? "(Rôle non défini)"
+                    : roleSysteme;
+            sb.append("=== RÔLE SYSTÈME ===\n").append(role).append("\n\n");
             this.roleSystemeChangeable = false;
         }
-        this.reponse += question.toLowerCase(Locale.FRENCH) + "||";
-        // La conversation contient l'historique des questions-réponses depuis le début.
+
+        // ---- TRAITEMENT SIMPLE ET PERSONNEL ----
+        // 1) Normaliser (trim + espaces)
+        String normalisee = question.trim().replaceAll("\\s+", " ");
+
+        // 2) Statistiques (mots / mots uniques)
+        int nbMots = normalisee.isBlank() ? 0 : normalisee.split("\\s+").length;
+        java.util.Set<String> uniques = new java.util.HashSet<>();
+        for (String m : normalisee.toLowerCase(java.util.Locale.FRENCH).split("\\s+")) {
+            if (!m.isBlank()) uniques.add(m);
+        }
+
+        // 3) Palindrome (ignorer accents/espaces/ponctuation)
+        String sansAccents = java.text.Normalizer
+                .normalize(normalisee, java.text.Normalizer.Form.NFD)
+                .replaceAll("\\p{M}+", "");
+        String alphanum = sansAccents.replaceAll("[^\\p{Alnum}]", "");
+        String lower = alphanum.toLowerCase(java.util.Locale.FRENCH);
+        boolean palindrome = !lower.isEmpty() && new StringBuilder(lower).reverse().toString().equals(lower);
+
+        // Construire la réponse finale
+        sb.append("=== ANALYSE DE VOTRE TEXTE ===\n")
+                .append("Texte normalisé : ").append(normalisee).append("\n")
+                .append("Mots : ").append(nbMots).append(" | Mots uniques : ").append(uniques.size()).append("\n")
+                .append("Palindrome (ignorant espaces/accents/ponctuation) : ").append(palindrome ? "OUI" : "NON").append("\n");
+
+        this.reponse = sb.toString();
+
+        // Historiser
         afficherConversation();
-        return null;
+        return null; // rester sur la même page
     }
+
 
     /**
      * Pour un nouveau chat.
